@@ -1,11 +1,9 @@
-/*
-  ArduinoMqttClient - WiFi Sender
-  SIT210 Embedded System Development
-  Task 3.3D
-  Name : Prabhjot Singh 
-  Student Id : 2210994884
-  
-*/
+/* SIT-210 (task-3.3D)
+   Name : Prabhjot Singh
+   Roll No. : 2210994884
+  */
+
+// Include necessary libraries and define constants
 
 #include <ArduinoMqttClient.h>
 #if defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT) || defined(ARDUINO_AVR_UNO_WIFI_REV2)
@@ -18,111 +16,101 @@
 #include <WiFi.h>
 #endif
 
-//#include "arduino_secrets.h"
-///////please enter your sensitive data in the Secret tab/arduino_secrets.h
-char ssid[] = "@prabh";    // your network SSID (name)
-char pass[] = "0987654321";    // your network password (use for WPA, or use as key for WEP)
+// Define Wi-Fi credentials and sensor pins
 
-// To connect with SSL/TLS:
-// 1) Change WiFiClient to WiFiSSLClient.
-// 2) Change port value from 1883 to 8883.
-// 3) Change broker value to a server with a known SSL/TLS root certificate
-//    flashed in the WiFi module.
+char wifiSsid[] = "@prabh";       // Your Wi-Fi network SSID (name)
+char wifiPass[] = "0987654321";   // Your Wi-Fi network password
 
-const int trigPin = 2;
-const int echoPin = 3;
+const int trigPin = 2;            // Trigger pin for distance measurement
+const int echoPin = 3;            // Echo pin for distance measurement
 
-float duration, distance;
+float pulseDuration, distance;    // Variables for pulse duration and distance
+
+// Initialize Wi-Fi and MQTT clients
 
 WiFiClient wifiClient;
 MqttClient mqttClient(wifiClient);
 
-const char broker[] = "broker.mqttdashboard.com";
-int        port     = 1883;
-const char topic[]  = "SIT210/waves";
+// Define MQTT broker information and measurement interval
 
-const long interval = 1000;
+const char mqttBroker[] = "broker.mqttdashboard.com";
+int mqttPort = 1883;
+const char mqttTopic[] = "SIT210/waves";
+
+const long measurementInterval = 1000; // Interval for taking distance measurements
 unsigned long previousMillis = 0;
 
-int count = 0;
+int waveCount = 0; // Counter for wave detections
 
 void setup() {
-  //Initialize serial and wait for port to open:
+  // Initialize serial communication for debugging
   Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
+  while (!Serial);
 
-  // attempt to connect to WiFi network:
-  Serial.print("Attempting to connect to WPA SSID: ");
-  Serial.println(ssid);
-  while (WiFi.begin(ssid, pass) != WL_CONNECTED) {
-    // failed, retry
+  // Connect to the Wi-Fi network
+  Serial.print("Connecting to a WPA SSID attempt: ");
+  Serial.println(wifiSsid);
+  while (WiFi.begin(wifiSsid, wifiPass) != WL_CONNECTED) {
     Serial.print(".");
     delay(5000);
   }
 
-  Serial.println("You're connected to the network");
+  // Successfully connected to the Wi-Fi network
+  Serial.println("You have a network connection.");
   Serial.println();
 
-  // You can provide a unique client ID, if not set the library uses Arduino-millis()
-  // Each client must have a unique client ID
-  // mqttClient.setId("clientId");
+  // Connect to the MQTT broker
+  Serial.print("Connection attempts to the MQTT broker: ");
+  Serial.println(mqttBroker);
 
-  // You can provide a username and password for authentication
-  // mqttClient.setUsernamePassword("username", "password");
-
-  Serial.print("Attempting to connect to the MQTT broker: ");
-  Serial.println(broker);
-
-  if (!mqttClient.connect(broker, port)) {
-    Serial.print("MQTT connection failed! Error code = ");
+  if (!mqttClient.connect(mqttBroker, mqttPort)) {
+    // MQTT connection failed
+    Serial.print("Connection to MQTT was lost! error number = ");
     Serial.println(mqttClient.connectError());
-
     while (1);
   }
 
-  Serial.println("You're connected to the MQTT broker!");
+  // Successfully connected to the MQTT broker
+  Serial.println("You are currently linked to the MQTT broker.");
   Serial.println();
 }
 
 void loop() {
-  // call poll() regularly to allow the library to send MQTT keep alives which
-  // avoids being disconnected by the broker
+  // Poll the MQTT client for incoming messages
   mqttClient.poll();
 
-  // to avoid having delays in loop, we'll use the strategy from BlinkWithoutDelay
-  // see: File -> Examples -> 02.Digital -> BlinkWithoutDelay for more info
+  // Get the current time in milliseconds
   unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= interval)
-  {
-    // save the last time a message was sent
+  // Check if it's time to take a distance measurement
+  if (currentMillis - previousMillis >= measurementInterval) {
     previousMillis = currentMillis;
 
+    // Trigger an ultrasonic sensor measurement
     digitalWrite(trigPin, LOW);
     delayMicroseconds(2);
     digitalWrite(trigPin, HIGH);
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
 
-    duration = pulseIn(echoPin, HIGH);
-    distance = (duration * .0343) / 2;
-    Serial.print("Distance: ");
-    Serial.println(distance);
-    if (distance < 5)
-    {
-      // send message, the Print interface can be used to set the message contents
-      mqttClient.beginMessage(topic);
-      mqttClient.print("Prabhjot Singh : Wave is detected, ");
+    // Measure the duration of the pulse
+    pulseDuration = pulseIn(echoPin, HIGH);
+
+    // Calculate the distance based on the pulse duration
+    distance = (pulseDuration * 0.0343) / 2;
+
+    // Check if a wave is detected (distance less than 5 units)
+    if (distance < 5) {
+      // Publish a message via MQTT indicating a wave detection
+      mqttClient.beginMessage(mqttTopic);
+      mqttClient.print("Prabhjot Singh: Wave has been discovered, ");
       mqttClient.print("Distance: ");
       mqttClient.print(distance);
       mqttClient.endMessage();
       delay(1000);
     }
 
-    Serial.println();
-
-    count++;
+    // Increment the wave detection count
+    waveCount++;
   }
 }
